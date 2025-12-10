@@ -32,14 +32,21 @@ public class PlayerMovement : MonoBehaviour
     public float attackCooldown = 0.5f;
     private bool canAttack = true;
 
-    // ESTADOS (Solo para ver en inspector, no tocar)
+    [Header("Sonidos (SFX)")] // --- NUEVA SECCIÓN ---
+    public AudioClip jumpSFX;
+    public AudioClip dashSFX;
+    public AudioClip attackSFX;
+    public AudioClip wallJumpSFX;
+    private AudioSource audioSrc;
+
+    // ESTADOS
     public bool isGrounded;
     public bool isTouchingWall;
 
     // COMPONENTES
     private Rigidbody2D rb;
     private BoxCollider2D boxCol;
-    private Animator anim; // El cerebro de las animaciones
+    private Animator anim;
     private float horizontalInput;
     private float facingDirection = 1;
 
@@ -47,30 +54,24 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         boxCol = GetComponent<BoxCollider2D>();
-        anim = GetComponent<Animator>(); // Conecta automáticamente con el Animator
+        anim = GetComponent<Animator>();
+        audioSrc = GetComponent<AudioSource>(); // --- CONECTAR AUDIO ---
     }
 
     void Update()
     {
         if (isDashing) return;
 
-        // 1. DETECCIÓN INTELIGENTE (Busca el Tag "Ground")
         CheckCollisions();
 
-        // 2. LEER TECLAS
         if (!isWallJumping) horizontalInput = Input.GetAxis(horizontalAxis);
 
-        // 3. ENVIAR DATOS AL ANIMADOR (¡Aquí ocurre la magia!)
         if (anim != null)
         {
-            // Le decimos qué tan rápido vamos (siempre positivo) para cambiar a RUN
             anim.SetFloat("Speed", Mathf.Abs(horizontalInput));
-
-            // Le decimos si pisamos suelo para cambiar a JUMP o IDLE
             anim.SetBool("IsGrounded", isGrounded);
         }
 
-        // 4. GIRAR PERSONAJE
         if (!isWallJumping)
         {
             bool lockedOnWall = isTouchingWall && !isGrounded;
@@ -81,29 +82,24 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // 5. SALTAR
         if (Input.GetButtonDown(jumpButton))
         {
             if (isGrounded)
             {
-                Jump(); // Salto normal
+                Jump();
             }
             else if (isTouchingWall)
             {
-                StartCoroutine(WallJumpRoutine()); // Salto de pared
+                StartCoroutine(WallJumpRoutine());
             }
         }
 
-        // 6. ATACAR
         if (Input.GetButtonDown(attackButton) && canAttack)
         {
-            // Avisamos al Animator para que inicie la animación
             if (anim != null) anim.SetTrigger("Attack");
-
             StartCoroutine(Attack());
         }
 
-        // 7. DASH
         if (Input.GetButtonDown(dashButton) && canDash) StartCoroutine(Dash());
     }
 
@@ -113,31 +109,23 @@ public class PlayerMovement : MonoBehaviour
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
     }
 
-    // --- SISTEMA DE FÍSICAS (Cajas invisibles) ---
     private void CheckCollisions()
     {
         Bounds bounds = boxCol.bounds;
-
-        // Caja de PIES (Más delgada para no tocar paredes)
         Vector2 groundBoxSize = new Vector2(bounds.size.x * 0.9f, 0.1f);
         RaycastHit2D hitGround = Physics2D.BoxCast(bounds.center, groundBoxSize, 0f, Vector2.down, 0.1f + (bounds.size.y / 2));
-
-        // Verifica si tocamos algo con la etiqueta "Ground"
         isGrounded = (hitGround.collider != null && hitGround.collider.CompareTag("Ground"));
 
-        // Caja de NARIZ (Pared)
         Vector2 wallBoxSize = new Vector2(0.1f, bounds.size.y * 0.8f);
         RaycastHit2D hitWall = Physics2D.BoxCast(bounds.center, wallBoxSize, 0f, Vector2.right * facingDirection, 0.1f + (bounds.size.x / 2));
-
         isTouchingWall = (hitWall.collider != null && hitWall.collider.CompareTag("Ground"));
-
-        // DIBUJOS VERDES/ROJOS EN LA ESCENA
-        Debug.DrawRay(bounds.center, Vector2.down * ((bounds.size.y / 2) + 0.1f), isGrounded ? Color.green : Color.red);
-        Debug.DrawRay(bounds.center, Vector2.right * facingDirection * ((bounds.size.x / 2) + 0.1f), isTouchingWall ? Color.green : Color.red);
     }
 
     private void Jump()
     {
+        // --- SONIDO SALTO ---
+        if (audioSrc != null && jumpSFX != null) audioSrc.PlayOneShot(jumpSFX);
+
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0);
         rb.AddForce(new Vector2(0, jumpForce), ForceMode2D.Impulse);
     }
@@ -145,6 +133,9 @@ public class PlayerMovement : MonoBehaviour
     private IEnumerator WallJumpRoutine()
     {
         isWallJumping = true;
+        // --- SONIDO SALTO PARED ---
+        if (audioSrc != null && wallJumpSFX != null) audioSrc.PlayOneShot(wallJumpSFX);
+
         float jumpDirection = -facingDirection;
         rb.linearVelocity = Vector2.zero;
         rb.AddForce(new Vector2(jumpDirection * wallJumpForce.x, wallJumpForce.y), ForceMode2D.Impulse);
@@ -167,6 +158,10 @@ public class PlayerMovement : MonoBehaviour
     {
         canDash = false;
         isDashing = true;
+
+        // --- SONIDO DASH ---
+        if (audioSrc != null && dashSFX != null) audioSrc.PlayOneShot(dashSFX);
+
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
         float dashDirection = Input.GetAxisRaw(horizontalAxis);
@@ -185,6 +180,10 @@ public class PlayerMovement : MonoBehaviour
     private IEnumerator Attack()
     {
         canAttack = false;
+
+        // --- SONIDO ATAQUE ---
+        if (audioSrc != null && attackSFX != null) audioSrc.PlayOneShot(attackSFX);
+
         if (attackHitbox != null) attackHitbox.SetActive(true);
         yield return new WaitForSeconds(attackDuration);
         if (attackHitbox != null) attackHitbox.SetActive(false);

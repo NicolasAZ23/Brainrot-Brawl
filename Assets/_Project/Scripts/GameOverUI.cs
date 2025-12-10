@@ -1,22 +1,57 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement; // ¡Necesario para cambiar de escena!
+using UnityEngine.SceneManagement;
+using System.Collections; // <--- OBLIGATORIO para la espera
 
 public class GameOverUI : MonoBehaviour
 {
-    // Función para el botón "Reiniciar Nivel" (Si lo quieres tener)
+    [Header("Arrastra el sonido aquí")]
+    public AudioClip clickSound;
+
+    private AudioSource audioSource;
+
+    void Start()
+    {
+        // Buscamos el Audio Source en este mismo objeto
+        audioSource = GetComponent<AudioSource>();
+    }
+
+    // --- BOTÓN REINICIAR ---
     public void RestartLevel()
     {
-        // Vuelve a cargar la escena en la que estás ahora mismo
+        StartCoroutine(EsperarYReiniciar());
+    }
+
+    // --- BOTÓN MENÚ ---
+    public void GoToMainMenu()
+    {
+        StartCoroutine(EsperarYMenu());
+    }
+
+    // --- RUTINAS DE ESPERA (LA SOLUCIÓN) ---
+
+    IEnumerator EsperarYReiniciar()
+    {
+        // 1. Sonar
+        if (audioSource != null && clickSound != null)
+            audioSource.PlayOneShot(clickSound);
+
+        // 2. Esperar 0.4 segundos
+        yield return new WaitForSeconds(0.4f);
+
+        // 3. Reiniciar la escena actual
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    // Función para el botón "Menú Principal"
-    public void GoToMainMenu()
+    IEnumerator EsperarYMenu()
     {
-        // Carga la escena con índice 0 (que debería ser tu menú)
-        // Asegúrate en File > Build Settings que el menú sea el 0.
+        // 1. Sonar
+        if (audioSource != null && clickSound != null)
+            audioSource.PlayOneShot(clickSound);
+
+        // 2. Esperar 0.4 segundos
+        yield return new WaitForSeconds(0.4f);
+
+        // 3. Cargar menú (Índice 0)
         SceneManager.LoadScene(0);
     }
 }

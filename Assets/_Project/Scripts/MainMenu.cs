@@ -1,19 +1,35 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement; // ¡Vital para cambiar de escena!
+using UnityEngine.SceneManagement;
 
 public class MainMenu : MonoBehaviour
 {
+    [Header("Paneles (Arrastra desde el Canvas)")]
+    public GameObject mainMenuContainer; // El grupo con Start/Quit
+    public GameObject mapSelectorPanel;  // El panel con las fotos de mapas
+
+    // --- FUNCIONES DE INICIO ---
+
     public void PlayGame()
     {
-        // Carga la siguiente escena en la lista (la del juego)
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
+        // En lugar de ir directo al juego, abrimos el selector de mapas
+        mainMenuContainer.SetActive(false);
+        mapSelectorPanel.SetActive(true);
     }
 
     public void QuitGame()
     {
-        Debug.Log("¡Saliendo del juego!"); // Esto solo se ve en Unity
-        Application.Quit(); // Esto cierra el juego real
+        Debug.Log("Saliendo...");
+        Application.Quit();
     }
+
+    // --- SELECCIÓN DE MAPAS ---
+
+    public void BackToMenu()
+    {
+        mainMenuContainer.SetActive(true);
+        mapSelectorPanel.SetActive(false);
+    }
+
+    public void LoadForest() { SceneManager.LoadScene(1); }
+    public void LoadCastle() { SceneManager.LoadScene(2); }
 }
