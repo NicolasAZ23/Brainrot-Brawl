@@ -4,12 +4,11 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Input")]
+    [Header("Input (Nombres en Input Manager)")]
     public string horizontalAxis = "Horizontal";
     public string jumpButton = "Jump";
     public string attackButton = "Fire1";
     public string dashButton = "Dash";
-    public string blockButton = "Block";
 
     [Header("Movement Stats")]
     public float moveSpeed = 8f;
@@ -33,55 +32,46 @@ public class PlayerMovement : MonoBehaviour
     public float attackCooldown = 0.5f;
     private bool canAttack = true;
 
-    // ESTADOS (Para que veas si funciona en el Inspector)
+    // ESTADOS (Solo para ver en inspector, no tocar)
     public bool isGrounded;
     public bool isTouchingWall;
 
-    // Visuals
-    public bool isBlocking = false;
-    private Color originalColor;
-    private SpriteRenderer spriteRenderer;
-
+    // COMPONENTES
     private Rigidbody2D rb;
-    private BoxCollider2D boxCol; // Necesitamos tu colisionador principal
+    private BoxCollider2D boxCol;
+    private Animator anim; // El cerebro de las animaciones
     private float horizontalInput;
     private float facingDirection = 1;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
-        boxCol = GetComponent<BoxCollider2D>(); // <--- ¡Auto-detectamos tu tamaño!
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        if (spriteRenderer) originalColor = spriteRenderer.color;
+        boxCol = GetComponent<BoxCollider2D>();
+        anim = GetComponent<Animator>(); // Conecta automáticamente con el Animator
     }
 
     void Update()
     {
         if (isDashing) return;
 
-        // ---------------------------------------------------------
-        // NUEVA DETECCIÓN AUTOMÁTICA (Sin Layers, solo Tags)
-        // ---------------------------------------------------------
+        // 1. DETECCIÓN INTELIGENTE (Busca el Tag "Ground")
         CheckCollisions();
 
-        // INPUT
+        // 2. LEER TECLAS
         if (!isWallJumping) horizontalInput = Input.GetAxis(horizontalAxis);
 
-        // BLOQUEO
-        if (Input.GetButton(blockButton) && isGrounded)
+        // 3. ENVIAR DATOS AL ANIMADOR (¡Aquí ocurre la magia!)
+        if (anim != null)
         {
-            isBlocking = true;
-            if (spriteRenderer) spriteRenderer.color = Color.blue;
-            horizontalInput = 0;
-        }
-        else
-        {
-            isBlocking = false;
-            if (!isDashing && spriteRenderer) spriteRenderer.color = originalColor;
+            // Le decimos qué tan rápido vamos (siempre positivo) para cambiar a RUN
+            anim.SetFloat("Speed", Mathf.Abs(horizontalInput));
+
+            // Le decimos si pisamos suelo para cambiar a JUMP o IDLE
+            anim.SetBool("IsGrounded", isGrounded);
         }
 
-        // GIRO
-        if (!isBlocking && !isWallJumping)
+        // 4. GIRAR PERSONAJE
+        if (!isWallJumping)
         {
             bool lockedOnWall = isTouchingWall && !isGrounded;
             if (!lockedOnWall)
@@ -91,24 +81,30 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // SALTO
-        if (Input.GetButtonDown(jumpButton) && !isBlocking)
+        // 5. SALTAR
+        if (Input.GetButtonDown(jumpButton))
         {
             if (isGrounded)
             {
-                Jump();
+                Jump(); // Salto normal
             }
             else if (isTouchingWall)
             {
-                StartCoroutine(WallJumpRoutine());
+                StartCoroutine(WallJumpRoutine()); // Salto de pared
             }
         }
 
-        if (!isBlocking)
+        // 6. ATACAR
+        if (Input.GetButtonDown(attackButton) && canAttack)
         {
-            if (Input.GetButtonDown(attackButton) && canAttack) StartCoroutine(Attack());
-            if (Input.GetButtonDown(dashButton) && canDash) StartCoroutine(Dash());
+            // Avisamos al Animator para que inicie la animación
+            if (anim != null) anim.SetTrigger("Attack");
+
+            StartCoroutine(Attack());
         }
+
+        // 7. DASH
+        if (Input.GetButtonDown(dashButton) && canDash) StartCoroutine(Dash());
     }
 
     void FixedUpdate()
@@ -117,30 +113,25 @@ public class PlayerMovement : MonoBehaviour
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
     }
 
-    // ---------------------------------------------------------
-    // LA MAGIA: DETECCIÓN POR CAJAS (BoxCast)
-    // ---------------------------------------------------------
+    // --- SISTEMA DE FÍSICAS (Cajas invisibles) ---
     private void CheckCollisions()
     {
-        // 1. Detectar SUELO
-        // Creamos una caja un poco más flaca que el jugador (0.9f) para que no toque las paredes laterales
         Bounds bounds = boxCol.bounds;
-        Vector2 boxSize = new Vector2(bounds.size.x * 0.9f, 0.1f);
 
-        // Lanzamos la caja hacia abajo
-        RaycastHit2D hitGround = Physics2D.BoxCast(bounds.center, boxSize, 0f, Vector2.down, 0.1f + (bounds.size.y / 2));
+        // Caja de PIES (Más delgada para no tocar paredes)
+        Vector2 groundBoxSize = new Vector2(bounds.size.x * 0.9f, 0.1f);
+        RaycastHit2D hitGround = Physics2D.BoxCast(bounds.center, groundBoxSize, 0f, Vector2.down, 0.1f + (bounds.size.y / 2));
 
-        // Verificamos: ¿Tocó algo? Y si lo tocó, ¿tiene la etiqueta "Ground"?
+        // Verifica si tocamos algo con la etiqueta "Ground"
         isGrounded = (hitGround.collider != null && hitGround.collider.CompareTag("Ground"));
 
-
-        // 2. Detectar PARED
-        // Lanzamos una caja hacia el frente
-        RaycastHit2D hitWall = Physics2D.BoxCast(bounds.center, new Vector2(0.1f, bounds.size.y * 0.8f), 0f, Vector2.right * facingDirection, 0.1f + (bounds.size.x / 2));
+        // Caja de NARIZ (Pared)
+        Vector2 wallBoxSize = new Vector2(0.1f, bounds.size.y * 0.8f);
+        RaycastHit2D hitWall = Physics2D.BoxCast(bounds.center, wallBoxSize, 0f, Vector2.right * facingDirection, 0.1f + (bounds.size.x / 2));
 
         isTouchingWall = (hitWall.collider != null && hitWall.collider.CompareTag("Ground"));
 
-        // DIBUJO PARA QUE VEAS LAS CAJAS EN LA SCENE (Rojo = Nada, Verde = Detectado)
+        // DIBUJOS VERDES/ROJOS EN LA ESCENA
         Debug.DrawRay(bounds.center, Vector2.down * ((bounds.size.y / 2) + 0.1f), isGrounded ? Color.green : Color.red);
         Debug.DrawRay(bounds.center, Vector2.right * facingDirection * ((bounds.size.x / 2) + 0.1f), isTouchingWall ? Color.green : Color.red);
     }
@@ -194,9 +185,9 @@ public class PlayerMovement : MonoBehaviour
     private IEnumerator Attack()
     {
         canAttack = false;
-        attackHitbox.SetActive(true);
+        if (attackHitbox != null) attackHitbox.SetActive(true);
         yield return new WaitForSeconds(attackDuration);
-        attackHitbox.SetActive(false);
+        if (attackHitbox != null) attackHitbox.SetActive(false);
         yield return new WaitForSeconds(attackCooldown);
         canAttack = true;
     }

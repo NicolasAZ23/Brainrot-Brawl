@@ -5,38 +5,58 @@ using UnityEngine.UI;
 
 public class Health : MonoBehaviour
 {
+    [Header("Configuración de Vida")]
     public int maxHealth = 100;
-    private int currentHealth;
+    public int currentHealth;
+    public Slider healthBar; // La barra verde
 
-    [Header("Connections")]
-    public Slider healthSlider;
-    public GameManager gameManager; // <--- ¡NUEVA CONEXIÓN!
+    [Header("Configuración de Muerte")]
+    public GameObject gameOverPanel; // El panel de Game Over que debe aparecer
+    public float voidYLevel = -10f;  // A qué altura mueres si caes (eje Y)
+
+    private SpriteRenderer spriteRenderer;
+    private Color originalColor;
+    private bool isDead = false; // Para que no muera dos veces
 
     void Start()
     {
         currentHealth = maxHealth;
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer) originalColor = spriteRenderer.color;
 
-        if (healthSlider != null)
+        // Iniciar barra llena
+        if (healthBar != null)
         {
-            healthSlider.maxValue = maxHealth;
-            healthSlider.value = currentHealth;
+            healthBar.maxValue = maxHealth;
+            healthBar.value = currentHealth;
         }
 
-        // TRUCO: Si se nos olvida conectar el GameManager manualmente, lo buscamos auto
-        if (gameManager == null)
+        // Asegurarnos de que el panel de Game Over esté oculto al empezar
+        if (gameOverPanel != null)
         {
-            gameManager = FindObjectOfType<GameManager>();
+            gameOverPanel.SetActive(false);
         }
     }
 
-    public void TakeDamage(int damageAmount)
+    void Update()
     {
-        currentHealth -= damageAmount;
-
-        if (healthSlider != null)
+        // --- DETECTAR CAÍDA AL VACÍO ---
+        // Si mi posición Y es menor que el límite, muero.
+        if (transform.position.y < voidYLevel && !isDead)
         {
-            healthSlider.value = currentHealth;
+            Die();
         }
+    }
+
+    public void TakeDamage(int amount)
+    {
+        if (isDead) return; // Si ya está muerto, no le pegues más
+
+        currentHealth -= amount;
+
+        if (healthBar != null) healthBar.value = currentHealth;
+
+        StartCoroutine(DamageFlash());
 
         if (currentHealth <= 0)
         {
@@ -46,12 +66,26 @@ public class Health : MonoBehaviour
 
     void Die()
     {
-        // Avisamos al árbitro ANTES de desaparecer
-        if (gameManager != null)
+        isDead = true;
+        Debug.Log(gameObject.name + " HA MUERTO.");
+
+        // 1. Mostrar el Game Over
+        if (gameOverPanel != null)
         {
-            gameManager.GameOver(gameObject.name);
+            gameOverPanel.SetActive(true);
         }
 
+        // 2. Desactivar al personaje para que no se mueva más
         gameObject.SetActive(false);
+    }
+
+    private IEnumerator DamageFlash()
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = Color.red;
+            yield return new WaitForSeconds(0.1f);
+            spriteRenderer.color = originalColor;
+        }
     }
 }
